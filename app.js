@@ -1,6 +1,5 @@
-// CycleTrack — full app.js (auto cycle/day, overlay chart, heatmap, suggestions)
+// CycleTrack — full app.js with Demo Data seeding & Clear All
 // Requires Chart.js and dayjs via CDN in your HTML.
-// Data model: entries[], settings{periodStart, cycleLength} in localStorage.
 
 const App = (() => {
   // ===== Config & constants =====
@@ -60,8 +59,6 @@ const App = (() => {
     if (d)  d.textContent  = dateStr || '—';
     if (cd) cd.textContent = cycleDay ?? '—';
     if (cn) cn.textContent = cycleNumber ?? '—';
-
-    // Sync hidden inputs for saving
     const hDay = document.getElementById('hiddenCycleDay');
     const hNum = document.getElementById('hiddenCycleNum');
     if (hDay) hDay.value = cycleDay ?? '';
@@ -83,6 +80,8 @@ const App = (() => {
     renderTodayTip();
     renderWeightOverlay('weightChart');
     renderRecentTable('recentTable');
+    // optional: hook seed/clear if buttons exist here too
+    wireGlobalButtons();
   }
 
   function renderRecentTable(tableId){
@@ -254,6 +253,8 @@ const App = (() => {
         toast('Saved!');
       });
     }
+    // optional: wire buttons here too
+    wireGlobalButtons();
   }
 
   // ===== Insights =====
@@ -263,6 +264,7 @@ const App = (() => {
     renderHeatmap('heatmap');
     updateAverages();
     updateTipsPreview();
+    wireGlobalButtons(); // seed/clear buttons on this page
   }
 
   function initSettingsForm(){
@@ -329,7 +331,6 @@ const App = (() => {
     const s = getSettings();
     const entries = getEntries();
 
-    // Count symptoms by phase
     const counts = Object.fromEntries(
       phases.map(p => [p, Object.fromEntries(symptomList.map(sym => [sym, 0]))])
     );
@@ -365,6 +366,113 @@ const App = (() => {
         scales: { x: { stacked: true }, y: { stacked: true } }
       }
     });
+  }
+
+  // ===== Demo data & clear =====
+  function rand(min, max){ return Math.random()*(max-min)+min; }
+  function rint(min, max){ return Math.floor(rand(min,max+1)); }
+  function pick(a){ return a[rint(0,a.length-1)]; }
+
+  function seedDemoData(){
+    // Ensure settings exist
+    let s = getSettings();
+    if (!s.periodStart) {
+      // set last period start to 2 cycles ago for nice spread
+      const today = dayjs();
+      const len = s.cycleLength || 28;
+      s.periodStart = today.subtract(len*2, 'day').format('YYYY-MM-DD');
+      setSettings(s);
+    }
+    const len = s.cycleLength || 28;
+
+    // Build 3 cycles worth of entries up to today
+    const entries = [];
+    const startDate = dayjs(s.periodStart);
+    const today = dayjs();
+
+    // baseline weight around 68–74 kg
+    const baseWeight = rand(68,74);
+
+    for (let dayOffset = 0; dayOffset < len*3; dayOffset++) {
+      const date = startDate.add(dayOffset, 'day');
+      if (date.isAfter(today)) break;
+
+      const dStr = date.format('YYYY-MM-DD');
+      const { cycleDay, cycleNumber } = dayAndCycleForDate(dStr, s);
+      if (!cycleDay || !cycleNumber) continue;
+
+      const ph = phaseForDay(cycleDay, len);
+
+      // weight: gentle sinusoid + noise
+      const w = (baseWeight
+        + Math.sin((cycleDay/len)*Math.PI*2)*0.6  // cyclic fluctuation
+        + (ph==='Luteal' ? 0.6 : 0)               // luteal water retention
+        + rand(-0.4, 0.4)).toFixed(1);
+
+      // energy varies by phase
+      const energyBase = ph==='Follicular' ? 7 : ph==='Ovulation' ? 8 : ph==='Luteal' ? 5 : 4;
+      const energy = Math.max(1, Math.min(10, Math.round(energyBase + rand(-1.2,1.2))));
+
+      // sleep, water, stress
+      const sleep = (7 + rand(-1.2,1.2)).toFixed(1);
+      const water = (1.8 + rand(-0.6,0.8)).toFixed(1);
+      const stress = Math.max(1, Math.min(10, Math.round(5 + (ph==='Luteal'?1:0) + rand(-2,2))));
+
+      // mood
+      const moods = ['Calm','Happy','Irritable','Anxious','Tired','Motivated'];
+      const mood = pick(moods);
+
+      // symptoms more likely by phase
+      const sym = [];
+      if (ph==='Menstrual') { if (Math.random()<0.6) sym.push('Cramps'); if (Math.random()<0.35) sym.push('Back Pain'); }
+      if (ph==='Luteal')    { if (Math.random()<0.5) sym.push('Bloating'); if (Math.random()<0.4) sym.push('Food Cravings'); if (Math.random()<0.25) sym.push('Headache'); }
+      if (ph==='Ovulation') { if (Math.random()<0.25) sym.push('Tender Breasts'); if (Math.random()<0.25) sym.push('High Libido'); }
+      if (Math.random()<0.15) sym.push('Acne');
+      if (Math.random()<0.15) sym.push('Low Libido');
+
+      entries.push({
+        date: dStr,
+        cycleNumber,
+        cycleDay,
+        weight: Number(w),
+        energy,
+        water: Number(water),
+        stress,
+        sleep: Number(sleep),
+        mood,
+        exercise: '',
+        food: '',
+        symptoms: sym
+      });
+    }
+
+    setEntries(entries);
+    // Re-render if on any page
+    renderWeightOverlay('weightChart');
+    renderRecentTable('recentTable');
+    renderHeatmap('heatmap');
+    updateAverages();
+    updateTipsPreview();
+    updateBadges();
+    toast('Demo data loaded');
+  }
+
+  function clearAllData(){
+    localStorage.removeItem(STORAGE_KEY);
+    // re-render empty states
+    renderWeightOverlay('weightChart');
+    renderRecentTable('recentTable');
+    renderHeatmap('heatmap');
+    updateAverages();
+    updateTipsPreview();
+    toast('All data cleared');
+  }
+
+  function wireGlobalButtons(){
+    const seedBtn = document.getElementById('seedBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    if (seedBtn) seedBtn.onclick = seedDemoData;
+    if (clearBtn) clearBtn.onclick = clearAllData;
   }
 
   // ===== Public API =====
