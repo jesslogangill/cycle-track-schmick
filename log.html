@@ -1,25 +1,76 @@
 <!doctype html>
 <html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CycleTrack · Log</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CycleTrack · Log</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="container">
-  <div class="nav"><a href="index.html">Dashboard</a><a href="log.html" class="active">Log</a><a href="insights.html">Insights</a></div>
-  <h1>Log Entry</h1>
-  <form id="logForm">
-    <label>Date <input type="date" name="date" required></label>
-    <label>Cycle Number <input type="number" name="cycleNumber" min="1" required></label>
-    <label>Cycle Day <input type="number" name="cycleDay" min="1" required></label>
-    <label>Weight (kg) <input type="number" step="0.1" name="weight"></label>
-    <label>Energy (1–10) <input type="number" min="1" max="10" name="energy"></label>
-    <label>Mood <select name="mood"><option>Happy</option><option>Tired</option><option>Anxious</option></select></label>
-    <button type="submit">Save</button>
-  </form>
+  <div class="nav">
+    <a href="index.html">🏠 Dashboard</a>
+    <a href="log.html" class="active">📝 Log</a>
+    <a href="insights.html">📈 Insights</a>
+  </div>
+
+  <div class="card">
+    <h1>Add today’s entry</h1>
+
+    <!-- Auto-inferred values shown as badges -->
+    <div class="grid" style="grid-template-columns:1fr 1fr 1fr;">
+      <span class="badge">Date: <strong id="autoDate">—</strong></span>
+      <span class="badge">Cycle #: <strong id="autoCycleNum">—</strong></span>
+      <span class="badge">Day: <strong id="autoCycleDay">—</strong></span>
+    </div>
+
+    <div class="notice" style="margin-top:10px">
+      These values are inferred from your <strong>Last period start</strong> and <strong>Cycle length</strong> (set on the Insights page).
+      You can change the date below — the day & cycle will auto-update.
+    </div>
+
+    <form id="logForm" class="grid" style="grid-template-columns:1fr 1fr;">
+      <div><label>Date</label><input type="date" name="date" id="dateInput" required></div>
+      <div><label>Weight (kg)</label><input type="number" step="0.1" name="weight"></div>
+      <div><label>Energy (1–10)</label><input type="number" name="energy" min="1" max="10"></div>
+      <div><label>Water (L)</label><input type="number" step="0.1" name="water"></div>
+      <div><label>Stress (1–10)</label><input type="number" name="stress" min="1" max="10"></div>
+      <div><label>Sleep (hrs)</label><input type="number" step="0.1" name="sleep"></div>
+
+      <div style="grid-column:1/-1"><label>Mood</label>
+        <select name="mood">
+          <option value="">—</option>
+          <option>Calm</option><option>Happy</option><option>Irritable</option>
+          <option>Anxious</option><option>Tired</option><option>Motivated</option>
+        </select>
+      </div>
+
+      <div style="grid-column:1/-1"><label>Symptoms (multi-select)</label>
+        <select name="symptoms" multiple>
+          <option>Cramps</option><option>Bloating</option><option>Tender Breasts</option>
+          <option>Headache</option><option>Acne</option><option>Back Pain</option>
+          <option>Food Cravings</option><option>Low Libido</option><option>High Libido</option>
+        </select>
+      </div>
+
+      <div style="grid-column:1/-1"><label>Exercise</label>
+        <input type="text" name="exercise" placeholder="Run 5km, gym, walk…">
+      </div>
+
+      <div style="grid-column:1/-1"><label>Food notes</label>
+        <textarea name="food" rows="3" placeholder="Meals, cravings, timing…"></textarea>
+      </div>
+
+      <!-- Hidden: auto-populated and saved -->
+      <input type="hidden" name="cycleNumber" id="hiddenCycleNum">
+      <input type="hidden" name="cycleDay" id="hiddenCycleDay">
+
+      <div style="grid-column:1/-1"><button type="submit">Save entry</button></div>
+    </form>
+  </div>
 </div>
+
+<div class="toast" id="toast"></div>
 <script src="app.js"></script>
 <script>App.initLog()</script>
 </body></html>
