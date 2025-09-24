@@ -1,5 +1,5 @@
-// CycleTrack — full app.js with Demo Data seeding & Clear All
-// Requires Chart.js and dayjs via CDN in your HTML.
+// CycleTrack — Dashboard revamp: Y = cycle day, phase background bands, multiple charts
+// Requires Chart.js + dayjs via CDN in your HTML.
 
 const App = (() => {
   // ===== Config & constants =====
@@ -52,19 +52,6 @@ const App = (() => {
     if (cl) cl.textContent = String(len);
   }
 
-  function setAutoBadges({cycleDay, cycleNumber, dateStr}){
-    const d = document.getElementById('autoDate');
-    const cd = document.getElementById('autoCycleDay');
-    const cn = document.getElementById('autoCycleNum');
-    if (d)  d.textContent  = dateStr || '—';
-    if (cd) cd.textContent = cycleDay ?? '—';
-    if (cn) cn.textContent = cycleNumber ?? '—';
-    const hDay = document.getElementById('hiddenCycleDay');
-    const hNum = document.getElementById('hiddenCycleNum');
-    if (hDay) hDay.value = cycleDay ?? '';
-    if (hNum) hNum.value = cycleNumber ?? '';
-  }
-
   // ===== UI helpers =====
   function toast(msg){
     const t = document.getElementById('toast');
@@ -74,14 +61,138 @@ const App = (() => {
     setTimeout(() => t.style.display = 'none', 1500);
   }
 
+  // ===== Chart helper: phase background plugin (y ranges) =====
+  // Draws translucent bands across y-axis windows for Menstrual, Follicular, Ovulation, Luteal
+  const phaseBandsPlugin = {
+    id: 'phaseBands',
+    beforeDraw(chart, args, opts) {
+      const {ctx, chartArea, scales} = chart;
+      if (!chartArea || !scales?.y) return;
+      const s = getSettings();
+      const len = s.cycleLength || 28;
+      const y = scales.y;
+      // Define y-ranges for phases (cycle days)
+      const ranges = [
+        {name:'Menstrual',  from:1,                to:5,                 color:'rgba(255,77,166,0.10)'},
+        {name:'Follicular', from:6,                to:Math.floor(len/2-2), color:'rgba(114,229,255,0.10)'},
+        {name:'Ovulation',  from:Math.floor(len/2-2), to:Math.ceil(len/2+2), color:'rgba(155,93,229,0.10)'},
+        {name:'Luteal',     from:Math.ceil(len/2+3), to:len,             color:'rgba(255,183,3,0.10)'}
+      ];
+      ctx.save();
+      ranges.forEach(r => {
+        const yTop = y.getPixelForValue(r.to);
+        const yBottom = y.getPixelForValue(r.from);
+        ctx.fillStyle = r.color;
+        ctx.fillRect(chartArea.left, yTop, chartArea.right - chartArea.left, yBottom - yTop);
+      });
+      ctx.restore();
+    }
+  };
+
   // ===== Dashboard =====
   function initDashboard(){
     updateBadges();
-    renderTodayTip();
-    renderWeightOverlay('weightChart');
+    renderWeightByDay('chartWeightByDay'); // X = weight, Y = cycle day
+    renderMetricByDay('chartEnergyByDay', 'energy', 'Energy (1–10)');
+    renderMetricByDay('chartSleepByDay', 'sleep', 'Sleep (hrs)');
     renderRecentTable('recentTable');
-    // optional: hook seed/clear if buttons exist here too
-    wireGlobalButtons();
+  }
+
+  // Weight vs cycle day (Y = day)
+  function renderWeightByDay(canvasId){
+    const entries = getEntries();
+    // group points by cycle number
+    const cycles = {};
+    entries.forEach(e => {
+      const c = e.cycleNumber ?? '1';
+      const day = Number(e.cycleDay);
+      const weight = Number(e.weight);
+      if (!Number.isFinite(day) || !Number.isFinite(weight)) return;
+      (cycles[c] ||= []).push({ x: weight, y: day });
+    });
+
+    const datasets = Object.keys(cycles)
+      .sort((a,b)=>Number(a)-Number(b))
+      .map((c,i)=>({
+        label: `Cycle ${c}`,
+        data: cycles[c].sort((p,q)=>p.y-q.y), // sort by day
+        showLine: true,
+        borderColor: palette[i % palette.length],
+        backgroundColor: palette[i % palette.length],
+        tension: 0.35,
+        borderWidth: 3,
+        pointRadius: 3.5,
+        parsing: false
+      }));
+
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    const ctx = el.getContext('2d');
+    if (ctx._chart) ctx._chart.destroy();
+    ctx._chart = new Chart(ctx, {
+      type: 'scatter',
+      data: { datasets },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { labels: { usePointStyle: true } },
+          tooltip: { callbacks: { label: (item)=>`Day ${item.parsed.y}: ${item.parsed.x} kg` } }
+        },
+        scales: {
+          y: { min: 1, max: (getSettings().cycleLength || 28), title: { display: true, text: 'Cycle Day (↑)' } },
+          x: { title: { display: true, text: 'Weight (kg) →' } }
+        }
+      },
+      plugins: [phaseBandsPlugin]
+    });
+  }
+
+  // Generic metric vs cycle day (energy, sleep, stress, etc.)
+  function renderMetricByDay(canvasId, key, xLabel){
+    const entries = getEntries();
+    const cycles = {};
+    entries.forEach(e => {
+      const c = e.cycleNumber ?? '1';
+      const day = Number(e.cycleDay);
+      const val = Number(e[key]);
+      if (!Number.isFinite(day) || !Number.isFinite(val)) return;
+      (cycles[c] ||= []).push({ x: val, y: day });
+    });
+
+    const datasets = Object.keys(cycles)
+      .sort((a,b)=>Number(a)-Number(b))
+      .map((c,i)=>({
+        label: `Cycle ${c}`,
+        data: cycles[c].sort((p,q)=>p.y-q.y),
+        showLine: true,
+        borderColor: palette[i % palette.length],
+        backgroundColor: palette[i % palette.length],
+        tension: 0.35,
+        borderWidth: 3,
+        pointRadius: 3.5,
+        parsing: false
+      }));
+
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    const ctx = el.getContext('2d');
+    if (ctx._chart) ctx._chart.destroy();
+    ctx._chart = new Chart(ctx, {
+      type: 'scatter',
+      data: { datasets },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { labels: { usePointStyle: true } },
+          tooltip: { callbacks: { label: (item)=>`Day ${item.parsed.y}: ${item.parsed.x}` } }
+        },
+        scales: {
+          y: { min: 1, max: (getSettings().cycleLength || 28), title: { display: true, text: 'Cycle Day (↑)' } },
+          x: { title: { display: true, text: `${xLabel} →` } }
+        }
+      },
+      plugins: [phaseBandsPlugin]
+    });
   }
 
   function renderRecentTable(tableId){
@@ -100,104 +211,7 @@ const App = (() => {
     }).join('') || `<tr><td colspan="5" class="subtitle">No entries yet. Add one on the Log page.</td></tr>`;
   }
 
-  function renderTodayTip(){
-    const s = getSettings();
-    const entries = getEntries();
-    const latest = entries[entries.length-1];
-
-    let title = 'Daily suggestion';
-    let body = 'Log an entry to get tailored tips.';
-
-    if (s.periodStart && s.cycleLength) {
-      const diff = dayjs().diff(dayjs(s.periodStart),'day');
-      const dayInCycle = (diff % s.cycleLength) + 1;
-      const ph = phaseForDay(dayInCycle, s.cycleLength);
-
-      const energy = latest?.energy ? Number(latest.energy) : null;
-      const stress = latest?.stress ? Number(latest.stress) : null;
-      const water  = latest?.water  ? Number(latest.water)  : null;
-
-      const tips = {
-        Menstrual: {
-          training: energy && energy < 5 ? 'Gentle: walk, yoga, mobility' : 'Light: walking + core activation',
-          nutrition: 'Iron-rich meals (spinach, lentils, beef). Warm soups. Magnesium for cramps.',
-          life: stress && stress > 6 ? 'Protect time. Reduce meetings. Early night.' : 'Lower intensity day. Heat pack + stretching.'
-        },
-        Follicular: {
-          training: 'Strength focus: progressive overload.',
-          nutrition: 'Higher protein; colourful veg; complex carbs around training.',
-          life: 'Batch deep work; you’re primed for focus and learning.'
-        },
-        Ovulation: {
-          training: 'Optional intensity: intervals or strong lifts if feeling good.',
-          nutrition: 'Hydrate well; add electrolytes if hot training.',
-          life: 'Great window for presentations & social plans.'
-        },
-        Luteal: {
-          training: 'Moderate steady work; deload if recovery poor.',
-          nutrition: 'Prioritise fibre & magnesium; stable meals to manage cravings.',
-          life: 'Buffer your calendar; add recovery habits & daylight walks.'
-        }
-      };
-
-      const t = tips[ph];
-      title = `${ph} · Day ${dayInCycle}`;
-      body  = `${t.training} • ${t.nutrition} • ${t.life}`;
-      if (water && water < 1.5) body += ' • Top up fluids today';
-    }
-
-    const elT = document.getElementById('todayTipTitle');
-    const elB = document.getElementById('todayTipBody');
-    if (elT) elT.textContent = title;
-    if (elB) elB.textContent = body;
-  }
-
-  function renderWeightOverlay(canvasId){
-    const entries = getEntries();
-    const cycles = {};
-    entries.forEach(e => {
-      const c = e.cycleNumber ?? '1';
-      (cycles[c] ||= []).push({ x: Number(e.cycleDay), y: Number(e.weight) });
-    });
-
-    const datasets = Object.keys(cycles)
-      .sort((a,b)=>Number(a)-Number(b))
-      .map((c,i) => {
-        const pts = cycles[c]
-          .filter(p => !Number.isNaN(p.x) && !Number.isNaN(p.y))
-          .sort((a,b)=>a.x-b.x);
-        return {
-          label: `Cycle ${c}`,
-          data: pts,
-          borderColor: palette[i % palette.length],
-          backgroundColor: palette[i % palette.length],
-          tension: .35,
-          borderWidth: 3,
-          pointRadius: 3.5,
-          fill: false,
-          parsing: false
-        };
-      });
-
-    const ctxEl = document.getElementById(canvasId);
-    if (!ctxEl) return;
-    const ctx = ctxEl.getContext('2d');
-    if (ctx._chart) ctx._chart.destroy();
-    ctx._chart = new Chart(ctx, {
-      type: 'line',
-      data: { datasets },
-      options: {
-        responsive: true,
-        plugins: { legend: { labels: { usePointStyle: true } } },
-        scales: {
-          x: { type: 'linear', min: 1, max: 40, title: { display: true, text: 'Cycle Day' } },
-          y: { title: { display: true, text: 'Weight (kg)' } }
-        }
-      }
-    });
-  }
-
-  // ===== Log =====
+  // ===== Log (unchanged behaviour) =====
   function initLog(){
     updateBadges();
 
@@ -253,18 +267,15 @@ const App = (() => {
         toast('Saved!');
       });
     }
-    // optional: wire buttons here too
-    wireGlobalButtons();
   }
 
-  // ===== Insights =====
+  // ===== Insights (unchanged) =====
   function initInsights(){
     updateBadges();
     initSettingsForm();
     renderHeatmap('heatmap');
     updateAverages();
     updateTipsPreview();
-    wireGlobalButtons(); // seed/clear buttons on this page
   }
 
   function initSettingsForm(){
@@ -368,111 +379,18 @@ const App = (() => {
     });
   }
 
-  // ===== Demo data & clear =====
-  function rand(min, max){ return Math.random()*(max-min)+min; }
-  function rint(min, max){ return Math.floor(rand(min,max+1)); }
-  function pick(a){ return a[rint(0,a.length-1)]; }
-
-  function seedDemoData(){
-    // Ensure settings exist
-    let s = getSettings();
-    if (!s.periodStart) {
-      // set last period start to 2 cycles ago for nice spread
-      const today = dayjs();
-      const len = s.cycleLength || 28;
-      s.periodStart = today.subtract(len*2, 'day').format('YYYY-MM-DD');
-      setSettings(s);
-    }
-    const len = s.cycleLength || 28;
-
-    // Build 3 cycles worth of entries up to today
-    const entries = [];
-    const startDate = dayjs(s.periodStart);
-    const today = dayjs();
-
-    // baseline weight around 68–74 kg
-    const baseWeight = rand(68,74);
-
-    for (let dayOffset = 0; dayOffset < len*3; dayOffset++) {
-      const date = startDate.add(dayOffset, 'day');
-      if (date.isAfter(today)) break;
-
-      const dStr = date.format('YYYY-MM-DD');
-      const { cycleDay, cycleNumber } = dayAndCycleForDate(dStr, s);
-      if (!cycleDay || !cycleNumber) continue;
-
-      const ph = phaseForDay(cycleDay, len);
-
-      // weight: gentle sinusoid + noise
-      const w = (baseWeight
-        + Math.sin((cycleDay/len)*Math.PI*2)*0.6  // cyclic fluctuation
-        + (ph==='Luteal' ? 0.6 : 0)               // luteal water retention
-        + rand(-0.4, 0.4)).toFixed(1);
-
-      // energy varies by phase
-      const energyBase = ph==='Follicular' ? 7 : ph==='Ovulation' ? 8 : ph==='Luteal' ? 5 : 4;
-      const energy = Math.max(1, Math.min(10, Math.round(energyBase + rand(-1.2,1.2))));
-
-      // sleep, water, stress
-      const sleep = (7 + rand(-1.2,1.2)).toFixed(1);
-      const water = (1.8 + rand(-0.6,0.8)).toFixed(1);
-      const stress = Math.max(1, Math.min(10, Math.round(5 + (ph==='Luteal'?1:0) + rand(-2,2))));
-
-      // mood
-      const moods = ['Calm','Happy','Irritable','Anxious','Tired','Motivated'];
-      const mood = pick(moods);
-
-      // symptoms more likely by phase
-      const sym = [];
-      if (ph==='Menstrual') { if (Math.random()<0.6) sym.push('Cramps'); if (Math.random()<0.35) sym.push('Back Pain'); }
-      if (ph==='Luteal')    { if (Math.random()<0.5) sym.push('Bloating'); if (Math.random()<0.4) sym.push('Food Cravings'); if (Math.random()<0.25) sym.push('Headache'); }
-      if (ph==='Ovulation') { if (Math.random()<0.25) sym.push('Tender Breasts'); if (Math.random()<0.25) sym.push('High Libido'); }
-      if (Math.random()<0.15) sym.push('Acne');
-      if (Math.random()<0.15) sym.push('Low Libido');
-
-      entries.push({
-        date: dStr,
-        cycleNumber,
-        cycleDay,
-        weight: Number(w),
-        energy,
-        water: Number(water),
-        stress,
-        sleep: Number(sleep),
-        mood,
-        exercise: '',
-        food: '',
-        symptoms: sym
-      });
-    }
-
-    setEntries(entries);
-    // Re-render if on any page
-    renderWeightOverlay('weightChart');
-    renderRecentTable('recentTable');
-    renderHeatmap('heatmap');
-    updateAverages();
-    updateTipsPreview();
-    updateBadges();
-    toast('Demo data loaded');
-  }
-
-  function clearAllData(){
-    localStorage.removeItem(STORAGE_KEY);
-    // re-render empty states
-    renderWeightOverlay('weightChart');
-    renderRecentTable('recentTable');
-    renderHeatmap('heatmap');
-    updateAverages();
-    updateTipsPreview();
-    toast('All data cleared');
-  }
-
-  function wireGlobalButtons(){
-    const seedBtn = document.getElementById('seedBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    if (seedBtn) seedBtn.onclick = seedDemoData;
-    if (clearBtn) clearBtn.onclick = clearAllData;
+  // ===== Utility used on Log page badges =====
+  function setAutoBadges({cycleDay, cycleNumber, dateStr}){
+    const d = document.getElementById('autoDate');
+    const cd = document.getElementById('autoCycleDay');
+    const cn = document.getElementById('autoCycleNum');
+    if (d)  d.textContent  = dateStr || '—';
+    if (cd) cd.textContent = cycleDay ?? '—';
+    if (cn) cn.textContent = cycleNumber ?? '—';
+    const hDay = document.getElementById('hiddenCycleDay');
+    const hNum = document.getElementById('hiddenCycleNum');
+    if (hDay) hDay.value = cycleDay ?? '';
+    if (hNum) hNum.value = cycleNumber ?? '';
   }
 
   // ===== Public API =====
