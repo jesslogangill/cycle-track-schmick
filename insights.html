@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CycleTrack · Insights</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <div class="nav"><a href="index.html">Dashboard</a><a href="log.html">Log</a><a href="insights.html" class="active">Insights</a></div>
+  <h1>Insights</h1>
+  <p>Symptom heatmap and averages</p>
+  <canvas id="heatmap"></canvas>
+</div>
+<script src="app.js"></script>
+<script>App.initInsights()</script>
+</body></html>

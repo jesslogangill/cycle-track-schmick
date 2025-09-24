@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CycleTrack · Log</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <div class="nav"><a href="index.html">Dashboard</a><a href="log.html" class="active">Log</a><a href="insights.html">Insights</a></div>
+  <h1>Log Entry</h1>
+  <form id="logForm">
+    <label>Date <input type="date" name="date" required></label>
+    <label>Cycle Number <input type="number" name="cycleNumber" min="1" required></label>
+    <label>Cycle Day <input type="number" name="cycleDay" min="1" required></label>
+    <label>Weight (kg) <input type="number" step="0.1" name="weight"></label>
+    <label>Energy (1–10) <input type="number" min="1" max="10" name="energy"></label>
+    <label>Mood <select name="mood"><option>Happy</option><option>Tired</option><option>Anxious</option></select></label>
+    <button type="submit">Save</button>
+  </form>
+</div>
+<script src="app.js"></script>
+<script>App.initLog()</script>
+</body></html>

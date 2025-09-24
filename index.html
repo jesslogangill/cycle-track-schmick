@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CycleTrack · Dashboard</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <div class="nav"><a href="index.html" class="active">Dashboard</a><a href="log.html">Log</a><a href="insights.html">Insights</a></div>
+  <h1>Dashboard</h1>
+  <p>Welcome to CycleTrack — overlay chart + daily tip.</p>
+  <canvas id="weightChart"></canvas>
+</div>
+<script src="app.js"></script>
+<script>App.initDashboard()</script>
+</body></html>
