@@ -108,7 +108,7 @@ const App = (() => {
       const day = Number(e.cycleDay);
       const weight = Number(e.weight);
       if (!Number.isFinite(day) || !Number.isFinite(weight)) return;
-      (cycles[c] ||= []).push({ x: weight, y: day });
+      (cycles[c] ||= []).push({ x: day, y: val });
     });
 
     const datasets = Object.keys(cycles)
