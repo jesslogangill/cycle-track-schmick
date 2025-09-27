@@ -276,6 +276,7 @@ const App = (() => {
     renderHeatmap('heatmap');
     updateAverages();
     updateTipsPreview();
+    renderInsightsCycleLines('insightsCycleLine', 'weight');
   }
 
   function initSettingsForm(){
