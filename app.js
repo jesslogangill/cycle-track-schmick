@@ -392,6 +392,61 @@ const App = (() => {
     if (hDay) hDay.value = cycleDay ?? '';
     if (hNum) hNum.value = cycleNumber ?? '';
   }
+function renderInsightsCycleLines(canvasId, metricKey){
+  const entries = getEntries();
+
+  // Group entries by cycle number
+  const cycles = {};
+  entries.forEach(e => {
+    const c = e.cycleNumber ?? '1';
+    const day = Number(e.cycleDay);
+    const val = Number(e[metricKey]);
+    if (!Number.isFinite(day) || !Number.isFinite(val)) return;
+
+    // 👇 Days go on X axis, metric values go on Y axis
+    (cycles[c] ||= []).push({ x: day, y: val });
+  });
+
+  // Turn each cycle into a dataset (one line per cycle)
+  const datasets = Object.keys(cycles)
+    .sort((a,b)=>Number(a)-Number(b))
+    .map((c,i)=>({
+      label: `Cycle ${c}`,
+      data: cycles[c].sort((p,q)=>p.x-q.x), // keep days in order
+      borderColor: palette[i % palette.length],
+      tension: 0.35,
+      borderWidth: 3,
+      pointRadius: 3,
+      fill: false,
+      parsing: false
+    }));
+
+  const el = document.getElementById(canvasId);
+  if (!el) return;
+  const ctx = el.getContext('2d');
+  if (ctx._chart) ctx._chart.destroy();
+
+  ctx._chart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { usePointStyle: true } },
+        tooltip: {
+          callbacks: {
+            title: (items)=> items.length ? `Day ${items[0].parsed.x}` : '',
+            label: (it)=> `${metricKey}: ${it.parsed.y}`
+          }
+        }
+      },
+      scales: {
+        x: { min: 1, max: (getSettings().cycleLength || 28), title: { display: true, text: 'Cycle Day →' } },
+        y: { title: { display: true, text: metricKey } }
+      }
+    }
+  });
+}
 
   // ===== Public API =====
   return { initDashboard, initLog, initInsights };
